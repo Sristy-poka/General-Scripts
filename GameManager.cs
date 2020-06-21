@@ -3,16 +3,43 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.Events;
+
+
 
 public class GameManager : Singleton<GameManager>
 {
+    //game states -  pregame, running, paused
+
+    public enum GameState
+    {
+        PREGAME,
+        RUNNING,
+        PAUSED
+    }
+
+
 
     public GameObject[] SystemPrefabs;
-    List<GameObject> _instancedSystemPrefabs; 
+    public Events.EventGameState OnGameStateChanged;
+
+
+    List<GameObject> _instancedSystemPrefabs;
     List<AsyncOperation> _loadOperations;
 
 
+
+    GameState _currentGameState = GameState.PREGAME;
+
+
+
     private string _currentLevelName = string.Empty;
+
+
+    public GameState CurrentGameState{
+        get { return _currentGameState; }
+       private set { _currentGameState = value; }
+     }
 
     private void Start()
     {
@@ -23,7 +50,9 @@ public class GameManager : Singleton<GameManager>
 
         InstantiateSystemPrefabs();
 
-        LoadLevel("Main");
+        UIManager.Instance.OnMainMenuFadeComplete.AddListener(HandleMainMenuFaidComplete);
+
+      
     }
 
 
@@ -32,6 +61,11 @@ public class GameManager : Singleton<GameManager>
         if (_loadOperations.Contains(ao))
         {
             _loadOperations.Remove(ao);
+
+            if (_loadOperations.Count == 0)
+            {
+                UpdateState(GameState.RUNNING);
+            }
         }
         Debug.Log("Load complete..");
     }
@@ -39,6 +73,38 @@ public class GameManager : Singleton<GameManager>
     private void OnUnloadOperationComplete(AsyncOperation obj)
     {
         Debug.Log("Unload complete..");
+    }
+
+    void HandleMainMenuFaidComplete(bool fadeOut)
+    {
+        if (!fadeOut)
+        {
+            UnloadLevel(_currentLevelName);
+        }
+    }
+    void UpdateState(GameState state)
+    {
+        GameState previousGameState = _currentGameState;
+        _currentGameState = state;
+
+        switch (_currentGameState)
+        {
+            case GameState.PREGAME:
+                Time.timeScale = 1.0f;
+                break;
+
+            case GameState.RUNNING:
+                Time.timeScale = 1.0f;
+                break;
+
+            case GameState.PAUSED:
+                Time.timeScale = 0.0f;
+                break;
+            default:
+                break;
+        }
+
+        OnGameStateChanged.Invoke(_currentGameState, previousGameState);
     }
 
     void InstantiateSystemPrefabs()
@@ -83,5 +149,26 @@ public class GameManager : Singleton<GameManager>
             Destroy(_instancedSystemPrefabs[i]);
         }
         _instancedSystemPrefabs.Clear();
+    }
+
+   public void StartGame()
+    {
+        LoadLevel("Main");
+    }
+
+    public void TogglePause()
+    {
+        UpdateState( _currentGameState == GameState.RUNNING ? GameState.PAUSED : GameState.RUNNING);   //condition? true : false
+    }
+
+
+    public void RestartGame()
+    {
+        UpdateState(GameState.PREGAME); 
+    }
+
+    public void QuitGame()
+    {
+        Application.Quit();
     }
 }
